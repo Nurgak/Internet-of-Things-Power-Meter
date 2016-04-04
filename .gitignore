@@ -1,0 +1,4 @@
+*.final
+*bak
+*.bck
+config.h

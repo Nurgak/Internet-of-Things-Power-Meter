@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Internet-of-Things Power Meter</title>
+
+<meta http-equiv="Content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/c3/0.4.10/c3.min.css">
+<link rel="stylesheet" type="text/css" href="https://ajax.googleapis.com/ajax/libs/jquerymobile/1.4.5/jquery.mobile.min.css">
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+
+<script>
+// To fix a jQuery Mobile error about "Failed to execute 'replaceState' on 'History'"
+$(document).bind('mobileinit',function()
+{
+  $.mobile.pushStateEnabled = false;
+});
+</script>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquerymobile/1.4.5/jquery.mobile.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.12/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/c3/0.4.10/c3.min.js"></script>
+<script type="text/javascript">
+
+var updateFrequencyInstant = 1000; // every second [ms]
+var updateFrequencyChart = 60 * 1000; // every minute [ms]
+var chart;
+
+$(document).ready(function()
+{
+  updateLive();
+  updateToday();
+
+  chart = c3.generate(
+  {
+    data: {
+      x: "Time",
+      xFormat : "%Y-%m-%dT%H:%MZ",
+      columns: [
+        ["Time"],
+        ["Power usage"]
+      ]
+    },
+    axis: {
+      x: {
+        type: "timeseries",
+        label: 'Time',
+        localtime: false,
+        tick: {
+          format: "%H:%M",
+          count: 24
+        }
+      },
+      y: {
+        min: 0,
+        padding: {
+          bottom: 0
+        },
+        label: 'Power [Wh]'
+      }
+    },
+    grid: {
+      x: {
+        show: true
+      },
+      y: {
+        show: true
+      }
+    },
+    legend: {
+      show: false
+    }
+  });
+
+  updateChart();
+});
+
+function updateLive()
+{
+  $.ajax({url: "api", timeout: updateFrequencyInstant, data: {request: "live"}}).done(function(data)
+  {
+    // Update live number
+    $("#live").html(data);
+  }).always(function()
+  {
+    // Schedule next update time
+    setTimeout(updateLive, updateFrequencyInstant);
+  });
+}
+
+function updateToday()
+{
+  $.ajax({url: "api", timeout: updateFrequencyInstant, data: {request: "today"}}).done(function(data)
+  {
+    // Update today number
+    $("#today").html(data);
+  }).always(function()
+  {
+    // Schedule next update time
+    setTimeout(updateToday, updateFrequencyInstant);
+  });
+}
+
+function updateChart()
+{
+  $.ajax({url: "api", timeout: updateFrequencyChart, data: {request: "values"}}).done(function(data)
+  {
+
+    updateChartData(data);
+  }).always(function()
+  {
+    // Schedule next update time
+    setTimeout(updateChart, updateFrequencyChart);
+  });
+}
+
+function updateChartData(data)
+{
+  // Data is in the following format:
+  // Time,Wh
+  // 00:00,1234
+  // ...
+  // 23:59,1234
+
+  // Time is GMT, with no daylight saving time
+
+  // Parse lines, a line is defined by a new line character "\n"
+  var power = data.split("\n");
+
+  // Prepare the data arrays
+  var timeArray = ["Time"];
+  var valueArray = ["Power usage"];
+
+  // Skip the header and last empty row
+  for(var i = 1; i < power.length - 1; i++)
+  {
+    // Split data and value with a comma and add to data arrays
+    var minuteData = power[i].split(",");
+    timeArray.push(minuteData[0]);
+    valueArray.push(minuteData[1]);
+  }
+  
+  // Update the chart
+  chart.load({
+    columns: [
+      timeArray,
+      valueArray
+    ]
+  });
+}
+
+</script>
+
+</head>
+<body>
+
+<div data-role="page">
+  <div data-role="header">
+    <h1>Internet-of-Things Power Meter Dashboard</h1>
+    <a href="edit" class="ui-btn-right ui-btn ui-icon-gear ui-btn-icon-left ui-shadow ui-corner-all" data-ajax="false">Admin</a>
+  </div>
+  <div role="main" class="ui-content">
+    <div class="ui-body ui-body-a ui-corner-all" style="margin-bottom: 1em;">
+      <h3>Current usage</h3>
+      <div class="ui-field-contain">
+        <label for="live">Live usage:</label>
+        <span id="live">0</span>Wh
+      </div>
+      <div class="ui-field-contain">
+        <label for="today">Total usage today:</label>
+        <span id="today">0</span>Wh
+      </div>
+    </div>
+    <div class="ui-body ui-body-a ui-corner-all">
+      <h3>Last 24-hour power usage</h3>
+      <p><div id="chart"></div></p>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
