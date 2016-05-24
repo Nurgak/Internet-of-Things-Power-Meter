@@ -62,7 +62,7 @@ void handleClient()
 
 // Authentificate the user for server access
 // Can be used in the form of http://username:password@power.local
-boolean basicAuthentication()
+bool basicAuthentication()
 {
   DEBUGV("User authertification request\n");
   

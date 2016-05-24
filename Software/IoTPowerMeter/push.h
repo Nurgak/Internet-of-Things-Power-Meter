@@ -20,26 +20,38 @@
 */
 
 /*
- * File:    server.h
+ * File:    push.h
  * Author:  Karl Kangur <karl.kangur@gmail.com>
  * Licnece: GPL
  * URL:     https://github.com/Nurgak/Internet-of-Things-Power-Meter
  */
 
-#ifndef SERVER_H
-#define SERVER_H
+#ifndef PUSH_H
+#define PUSH_H
 
-void serverApi();
-void initServer();
-void printDirectory();
-void handleClient();
-void handleDelete();
-void handleCreate();
-void returnOK();
-void handleNotFound();
-void handleFileUpload();
-bool loadFromSdCard(String);
-bool basicAuthentication();
+// Service to push data to the internet in order to update some online database
+class Push
+{
+  protected:
+  const char * host;
+  
+  public:
+  virtual bool submit(time_t time, uint16_t power) = 0;
+};
+
+// Class to submit the power data to Google Spreadsheets
+class GoogleSpreadsheets : public Push
+{
+  private:
+  WiFiClientSecure client;
+  const char * script;
+  // SHA1 fingerprint of Google Spreadsheets
+  const char * fingerprint = "81 50 50 6A 2B 1C 60 02 C2 96 51 57 AC 25 FA C9 51 FD F5 A4";
+  
+  public:
+  GoogleSpreadsheets(const char * _script);
+  bool submit(time_t time, uint16_t power);
+};
 
 #endif
 

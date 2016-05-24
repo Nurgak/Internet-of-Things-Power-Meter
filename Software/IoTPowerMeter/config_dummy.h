@@ -48,24 +48,27 @@
 // How often the internal time is synchronised with the NTP server
 #define TIME_SYNC_PERIOD 12*60*60 // [s]
 // NTP server from which to fetch the time
-static const char* ntpServerName = "time.nist.gov";
+static const char * ntpServerName = "time.nist.gov";
 
 #define ENABLE_INTERNET // Comment thus line to remove all internet related functionalities
-static const char* wifi_ssid = "SSID";
-static const char* wifi_password = "password";
+static const char * wifi_ssid = "SSID";
+static const char * wifi_password = "password";
 
 //#define ENABLE_STATIC_IP // Comment this line for dynamic IP
 static const uint8_t wifi_ip[] = {192, 168, 0, 123};     // The IP you want to give to your device
 static const uint8_t wifi_gateway[] = {192, 168, 0, 1};  // Router IP
 static const uint8_t wifi_subnet[] = {255, 255, 255, 0}; // You probably do not need to change this one
 
+#define PUSH_GOOGLE_SPREADSHEETS // Comment this line to disable logging to Google Spreadsheets
+static const char * googleSpreadSheetsScript = "/macros/s/SCRIPT_ID/exec";
+
 // Name of the host, use to connect to device via "http://power.local" instead of using the IP address locally
 static const char* localHostName = "power";
 
 // Username and password to access the server
 #define ENABLE_AUTHENTIFICATION
-static const char* http_username = "SuperSpeedySlothSith5";
-static const char* http_password = "PotatoTreeSmellIncredible";
+static const char * http_username = "admin";
+static const char * http_password = "admin";
 
 // For debugging
 #define DEBUG_SERIAL Serial

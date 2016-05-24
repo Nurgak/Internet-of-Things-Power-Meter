@@ -38,6 +38,7 @@
 #include "IoTPowerMeter.h"
 #include "ESP_SSD1306.h"
 #include "server.h"
+#include "push.h"
 
 // Global instances
 IPAddress ip;
@@ -110,7 +111,15 @@ void loop(void)
   // Define and initialise with invalid values so they will get updated right away
   static uint8_t currentMinute = 0xff;
   static uint8_t currentDay = 0xff;
+  static uint8_t currentHour = 0xff;
+  static uint16_t powerCounterHour = 0; // Power counter for the current hour
+  static uint16_t powerCounterHourTemp = 0; // Temporary variable for pushing data to the internet
   static uint16_t powerCounterTemp = 0; // Temporary variable for logging
+  static bool uploadHourlyData = false;
+
+  #if defined(ENABLE_INTERNET) && defined(PUSH_GOOGLE_SPREADSHEETS)
+  static GoogleSpreadsheets gs(googleSpreadSheetsScript);
+  #endif
   
   // Handle client connecting to server
   #ifdef ENABLE_INTERNET
@@ -124,9 +133,12 @@ void loop(void)
     
     // Log the last minute data to SD card
     // Copy the counter to a temporary variable and reset it
-    // TODO: these 2 actions should be atomic, a blink can potentially happen between these 2 instructions and be lost
+    // TODO: these actions should be atomic, a blink can potentially happen between these instructions and be lost
     powerCounterTemp = powerCounter;
     powerCounter = 0;
+
+    // Cumulative hour counter to log data hourly
+    powerCounterHour += powerCounterTemp;
 
     // Get the previous minute value by removing 60 seconds from current minute
     // Second precision does not matter
@@ -140,10 +152,22 @@ void loop(void)
       powerCounterToday = 0;
     }
 
+    // Hourly counter
+    if(currentHour != hour())
+    {
+      currentHour = hour();
+      powerCounterHourTemp = powerCounterHour;
+      powerCounterHour = 0;
+      
+      // This is used to upload data hourly further down below, but it might take time so just set a flag here
+      uploadHourlyData = true;
+    }
+
     #ifdef ENABLE_INTERNET
     // Check that the device is still connected to the WiFi
     if(WiFi.status() != WL_CONNECTED)
     {
+      screenStatus("Connecting...");
       if(!setupWiFi())
       {
         screenStatus("WiFi error");
@@ -158,18 +182,48 @@ void loop(void)
         // Will try to sync the time and set the appropriate state for timeStatus()
         setSyncProvider(syncTime);
       }
+      
+      #if defined(PUSH_GOOGLE_SPREADSHEETS)
+      if(uploadHourlyData)
+      {
+        uploadHourlyData = false;
+        
+        // Try to push data to Google Spreadsheets
+        screenStatus("Uploading data");
+        
+        // Try 10 times at most
+        uint8_t retries = 0;
+        while(retries++ < 10)
+        {
+          DEBUGV("Uploading data, try %d\n", retries);
+
+          // For hourly logs the minutes are not important, but to be sure we have the right hour (the last one) remove 30 minutes (minus the 1 from before too) from now
+          // This is because the data uploaded is for the last hour, not the current hour, the server will only keep the hour of the day, the minutes are irrelevant
+          time_t timeLogHour = timeLogEntry - 30 * 60;
+          if(gs.submit(timeLogHour, powerCounterHourTemp))
+          {
+            screenStatus("OK");
+            break;
+          }
+          else
+          {
+            screenStatus("Upload failed");
+          }
+        }
+      }
+      #endif
     }
     #endif
   }
 
-  // Detect button hold
+  // Detect long button press
   static uint32_t button_hold_time = 0;
   if(digitalRead(BUTTON_PIN) == LOW && button_hold_time == 0)
   {
     // Start timeout counter
     button_hold_time = millis();
   }
-  else if(digitalRead(BUTTON_PIN) == LOW && millis() - button_hold_time > 3000)
+  else if(digitalRead(BUTTON_PIN) == LOW && millis() - button_hold_time > 2000)
   {
     // Reset timeout
     button_hold_time = 0;
@@ -196,8 +250,6 @@ void ICACHE_FLASH_ATTR buttonPress()
 void ICACHE_FLASH_ATTR buttonPressLong()
 {
   // TODO: set AP mode to configure Wi-Fi credentials
-  screenStatus("Restarting");
-  ESP.restart();
 }
 
 // Show the current action in the STAT field on the screen
@@ -250,7 +302,7 @@ void ICACHE_FLASH_ATTR screenUpdate()
   {
     currentSecond = second();
     memset(buffer, 0, sizeof(buffer));
-    sprintf(buffer, "%02d:%02d:%02dGMT", hour(), minute(), currentSecond);
+    sprintf(buffer, "%02d:%02d:%02dUTC", hour(), minute(), currentSecond);
     display.clear(4, 6);
     display.sendStrXY(buffer, 4, 6);
   }
@@ -351,12 +403,12 @@ time_t ICACHE_FLASH_ATTR syncTime()
   
   screenStatus("Time sync.");
 
-  uint8_t retries = 10;
-  while(retries--)
+  uint8_t retries = 0;
+  while(retries++ < 10)
   {
     udp.begin(2390);
 
-    DEBUGV("Sync try %d\n", retries);
+    DEBUGV("Time sync try %d\n", retries);
     
     // Get the IP from the address
     WiFi.hostByName(ntpServerName, timeServerIP);
@@ -398,7 +450,9 @@ time_t ICACHE_FLASH_ATTR syncTime()
       // Only bytes 40 to 43 are important, trash the rest
       // Concatenate 4 bytes and remove 70 years since Unix time starts on Jan 1 1970 and we want 1900
       currentTime = ((packetBuffer[40] << 24) | (packetBuffer[41] << 16) | (packetBuffer[42] << 8) | packetBuffer[43]) - 2208988800UL;
-      retries = 0;
+      DEBUGV("Timestamp %d\n", currentTime);
+      // Break both loops
+      retries = 10;
       break;
     }
     
