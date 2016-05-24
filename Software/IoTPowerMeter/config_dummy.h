@@ -71,8 +71,8 @@ static const char * http_username = "admin";
 static const char * http_password = "admin";
 
 // For debugging
-#define DEBUG_SERIAL Serial
-#define DEBUGV(...) ets_printf(__VA_ARGS__)
+//#define DEBUG_SERIAL Serial
+//#define DEBUGV(...) ets_printf(__VA_ARGS__)
 
 #endif
 
