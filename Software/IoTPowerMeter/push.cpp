@@ -50,7 +50,7 @@ bool GoogleSpreadsheets::submit(time_t time, uint16_t power)
     return false;
   }
 
-  // Check that the certificate matches
+  // Check that the fingerprint matches
   if(!client.verify(fingerprint, host))
   {
     //Serial.println("Certificate not valid");

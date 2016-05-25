@@ -70,8 +70,29 @@ static const char* localHostName = "power";
 static const char * http_username = "admin";
 static const char * http_password = "admin";
 
+// Events (time syncing, data uploading, wifi connections...) will be logged to /log.txt file, comment this out to disable event logging
+#define ENABLE_EVENT_LOGGING
+
+// Global constants, no magic numbers
+#define MAX_TRIES_UPLOAD 5 // Maximum times the system will try to upload data before abandoning
+#define MAX_TRIES_WIFI_CONNECT 5 // Maximum times the system will try to connect to Wi-Fi
+#define MAX_TRIES_TIME_SYNC 5 // Maximum times the system will try to synchronise time with an NTP server
+#define MAX_TRIES_TIME_SYNC_RESPONSE 5 // Maximum times the system will wait for a response from the NTP server
+#define TIME_BUTTON_PRESS_LONG 2000 // Time in milliseconds for the long button press routine to execute
+#define SCREEN_START_COLUMN 6 // Horizontal position from which the data should be displayed on screen
+#define SCREEN_ROW_SSID  0
+#define SCREEN_ROW_STAT  1
+#define SCREEN_ROW_IP    2
+#define SCREEN_ROW_DATE  3
+#define SCREEN_ROW_TIME  4
+#define SCREEN_ROW_NOW   5
+#define SCREEN_ROW_TODAY 6
+#define SCREEN_ROW_HEAP  7
+#define NTP_PACKET_SIZE 48
+
 // For debugging
 //#define DEBUG_SERIAL Serial
+//#define DEBUG_BAUDRATE 115200
 //#define DEBUGV(...) ets_printf(__VA_ARGS__)
 
 #endif

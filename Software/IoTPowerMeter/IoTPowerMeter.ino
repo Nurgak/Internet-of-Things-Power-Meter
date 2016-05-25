@@ -54,7 +54,7 @@ void setup(void)
 {
   // See config.h file to enable/disable debugging
   #ifdef DEBUG_SERIAL
-  DEBUG_SERIAL.begin(115200);
+  DEBUG_SERIAL.begin(DEBUG_BAUDRATE);
   DEBUG_SERIAL.setDebugOutput(true);
   #endif
   
@@ -115,7 +115,8 @@ void loop(void)
   static uint16_t powerCounterHour = 0; // Power counter for the current hour
   static uint16_t powerCounterHourTemp = 0; // Temporary variable for pushing data to the internet
   static uint16_t powerCounterTemp = 0; // Temporary variable for logging
-  static bool uploadHourlyData = false;
+  static bool uploadData = false; // Temporary variable indicating if data should be uploaded
+  static char buffer[32]; // Buffer for log messages
 
   #if defined(ENABLE_INTERNET) && defined(PUSH_GOOGLE_SPREADSHEETS)
   static GoogleSpreadsheets gs(googleSpreadSheetsScript);
@@ -148,6 +149,9 @@ void loop(void)
     // Reset the today counter when the day changes
     if(day() != currentDay)
     {
+      sprintf(buffer, "Day power usage: %dWh", powerCounterToday);
+      logEvent(buffer);
+      
       currentDay = day();
       powerCounterToday = 0;
     }
@@ -160,7 +164,7 @@ void loop(void)
       powerCounterHour = 0;
       
       // This is used to upload data hourly further down below, but it might take time so just set a flag here
-      uploadHourlyData = true;
+      uploadData = true;
     }
 
     #ifdef ENABLE_INTERNET
@@ -184,16 +188,17 @@ void loop(void)
       }
       
       #if defined(PUSH_GOOGLE_SPREADSHEETS)
-      if(uploadHourlyData)
+      if(uploadData)
       {
-        uploadHourlyData = false;
+        uploadData = false;
         
         // Try to push data to Google Spreadsheets
         screenStatus("Uploading data");
         
-        // Try 10 times at most
+        // Try a couple of times
         uint8_t retries = 0;
-        while(retries++ < 10)
+        boolean uploadComplete = false;
+        while(retries++ < MAX_TRIES_UPLOAD)
         {
           DEBUGV("Uploading data, try %d\n", retries);
 
@@ -203,12 +208,20 @@ void loop(void)
           if(gs.submit(timeLogHour, powerCounterHourTemp))
           {
             screenStatus("OK");
+            
+            uploadComplete = true;
+            
+            sprintf(buffer, "Data uploading tries: %d", retries);
+            logEvent(buffer);
+            
             break;
           }
-          else
-          {
-            screenStatus("Upload failed");
-          }
+        }
+
+        if(!uploadComplete)
+        {
+          screenStatus("Upload failed");
+          logEvent("Upload failed");
         }
       }
       #endif
@@ -220,18 +233,21 @@ void loop(void)
   static uint32_t button_hold_time = 0;
   if(digitalRead(BUTTON_PIN) == LOW && button_hold_time == 0)
   {
+    // Button was pressed and the button hold timer was 0, so button push just started
     // Start timeout counter
     button_hold_time = millis();
   }
-  else if(digitalRead(BUTTON_PIN) == LOW && millis() - button_hold_time > 2000)
+  else if(digitalRead(BUTTON_PIN) == LOW && millis() - button_hold_time > TIME_BUTTON_PRESS_LONG)
   {
+    // Button was held down for TIME_BUTTON_PRESS_LONG milliseconds, execute the long button press routine
     // Reset timeout
     button_hold_time = 0;
-    // Execute the long press routine after 3 second hold
+    // Execute the long press routine
     buttonPressLong();
   }
   else if(digitalRead(BUTTON_PIN) == HIGH && button_hold_time != 0)
   {
+    // Button was released before the TIME_BUTTON_PRESS_LONG milliseconds finished, just reset the counter 
     // Reset timeout when button is released
     button_hold_time = 0;
   }
@@ -255,8 +271,8 @@ void ICACHE_FLASH_ATTR buttonPressLong()
 // Show the current action in the STAT field on the screen
 void ICACHE_FLASH_ATTR screenStatus(const char * status)
 {
-  display.clear(1, 6);
-  display.sendStrXY(status, 1, 6);
+  display.clear(SCREEN_ROW_STAT, SCREEN_START_COLUMN);
+  display.sendStrXY(status, SCREEN_ROW_STAT, SCREEN_START_COLUMN);
 }
 
 // Update data on screen
@@ -273,8 +289,8 @@ void ICACHE_FLASH_ATTR screenUpdate()
   
   if(screenUpdateFieldFlags & SSID)
   {
-    display.clear(0, 6);
-    display.sendStrXY((char*)wifi_ssid, 0, 6);
+    display.clear(SCREEN_ROW_SSID, SCREEN_START_COLUMN);
+    display.sendStrXY((char*)wifi_ssid, SCREEN_ROW_SSID, SCREEN_START_COLUMN);
   }
   
   // Row 1 is for the status, updated by the screenStatus() function
@@ -283,8 +299,8 @@ void ICACHE_FLASH_ATTR screenUpdate()
   {
     memset(buffer, 0, sizeof(buffer));
     sprintf(buffer, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-    display.clear(2, 6);
-    display.sendStrXY(buffer, 2, 6);
+    display.clear(SCREEN_ROW_IP, SCREEN_START_COLUMN);
+    display.sendStrXY(buffer, SCREEN_ROW_IP, SCREEN_START_COLUMN);
   }
   
   // Auto-update when day has changed
@@ -293,8 +309,8 @@ void ICACHE_FLASH_ATTR screenUpdate()
     currentDay = day();
     memset(buffer, 0, sizeof(buffer));
     sprintf(buffer, "%04d-%02d-%02d", year(), month(), currentDay);
-    display.clear(3, 6);
-    display.sendStrXY(buffer, 3, 6);
+    display.clear(SCREEN_ROW_DATE, SCREEN_START_COLUMN);
+    display.sendStrXY(buffer, SCREEN_ROW_DATE, SCREEN_START_COLUMN);
   }
   
   // Auto-update when second has changed
@@ -303,8 +319,8 @@ void ICACHE_FLASH_ATTR screenUpdate()
     currentSecond = second();
     memset(buffer, 0, sizeof(buffer));
     sprintf(buffer, "%02d:%02d:%02dUTC", hour(), minute(), currentSecond);
-    display.clear(4, 6);
-    display.sendStrXY(buffer, 4, 6);
+    display.clear(SCREEN_ROW_TIME, SCREEN_START_COLUMN);
+    display.sendStrXY(buffer, SCREEN_ROW_TIME, SCREEN_START_COLUMN);
   }
   
   if(powerCounterNow != powerCounterNowTemp || screenUpdateFieldFlags & NOW)
@@ -312,8 +328,8 @@ void ICACHE_FLASH_ATTR screenUpdate()
     powerCounterNowTemp = powerCounterNow;
     memset(buffer, 0, sizeof(buffer));
     sprintf(buffer, "%dWh", powerCounterNowTemp);
-    display.clear(5, 6);
-    display.sendStrXY(buffer, 5, 6);
+    display.clear(SCREEN_ROW_NOW, SCREEN_START_COLUMN);
+    display.sendStrXY(buffer, SCREEN_ROW_NOW, SCREEN_START_COLUMN);
   }
   
   if(powerCounterToday != powerCounterTodayTemp || screenUpdateFieldFlags & TODAY)
@@ -321,8 +337,8 @@ void ICACHE_FLASH_ATTR screenUpdate()
     powerCounterTodayTemp = powerCounterToday;
     memset(buffer, 0, sizeof(buffer));
     sprintf(buffer, "%dWh", powerCounterTodayTemp);
-    display.clear(6, 6);
-    display.sendStrXY(buffer, 6, 6);
+    display.clear(SCREEN_ROW_TODAY, SCREEN_START_COLUMN);
+    display.sendStrXY(buffer, SCREEN_ROW_TODAY, SCREEN_START_COLUMN);
   }
 
   // Update the heap size information if it has changed
@@ -331,8 +347,8 @@ void ICACHE_FLASH_ATTR screenUpdate()
     heapTemp = ESP.getFreeHeap();
     memset(buffer, 0, sizeof(buffer));
     sprintf(buffer, "%db", heapTemp);
-    display.clear(7, 6);
-    display.sendStrXY(buffer, 7, 6);
+    display.clear(SCREEN_ROW_HEAP, SCREEN_START_COLUMN);
+    display.sendStrXY(buffer, SCREEN_ROW_HEAP, SCREEN_START_COLUMN);
   }
   
   // Reset flags
@@ -342,6 +358,9 @@ void ICACHE_FLASH_ATTR screenUpdate()
 // Configure WiFi connection
 boolean ICACHE_FLASH_ATTR setupWiFi()
 {
+  // Buffer to store the temporary log message
+  char buffer[32];
+  
   if(WiFi.status() == WL_CONNECTED)
   {
     return true;
@@ -351,16 +370,17 @@ boolean ICACHE_FLASH_ATTR setupWiFi()
   screenUpdateFieldFlags |= SSID;
   screenUpdate();
   
-  DEBUGV("Connecting to AP: %s\n", wifi_ssid);
+  sprintf(buffer, "Connecting to AP: %s", wifi_ssid);
+  logEvent(buffer);
   
   #ifdef ENABLE_STATIC_IP
   WiFi.config(wifi_ip, wifi_gateway, wifi_subnet);
   #endif
   WiFi.begin(wifi_ssid, wifi_password);
   
-  // Wait for connection, wait 20 seconds
-  uint8_t retries = 20;
-  while(WiFi.status() != WL_CONNECTED && retries--)
+  // Wait for connection
+  uint8_t retries = 0;
+  while(WiFi.status() != WL_CONNECTED && retries++ < MAX_TRIES_WIFI_CONNECT)
   {
     DEBUGV("WiFi status: %d\n", WiFi.status());
     
@@ -368,17 +388,25 @@ boolean ICACHE_FLASH_ATTR setupWiFi()
     {
       return false;
     }
+    
+    // Wait a second between retries
     delay(1000);
   }
   
   if(WiFi.status() != WL_CONNECTED)
   {
-    DEBUGV("Failed to connect to WiFi\n");
+    logEvent("Failed to connect to WiFi");
     return false;
   }
+
+  // Save situation to log file
+  sprintf(buffer, "Wifi connect tries: %d", retries);
+  logEvent(buffer);
   
   ip = WiFi.localIP();
-  DEBUGV("Device IP: %d.%d.%d.%d\n", ip[0], ip[1], ip[2], ip[3]);
+  
+  sprintf(buffer, "Device IP: %d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+  logEvent(buffer);
   
   screenUpdateFieldFlags |= IP;
   screenUpdate();
@@ -398,61 +426,64 @@ time_t ICACHE_FLASH_ATTR syncTime()
   WiFiUDP udp;
   IPAddress timeServerIP;
   
-  byte packetBuffer[48] = {0};
+  byte packetBuffer[NTP_PACKET_SIZE] = {0};
   time_t currentTime = 0;
   
   screenStatus("Time sync.");
 
-  uint8_t retries = 0;
-  while(retries++ < 10)
+  uint8_t retries = MAX_TRIES_TIME_SYNC;
+  while(retries--)
   {
     udp.begin(2390);
 
-    DEBUGV("Time sync try %d\n", retries);
+    DEBUGV("Time sync try %d\n", MAX_TRIES_TIME_SYNC - retries);
     
     // Get the IP from the address
     WiFi.hostByName(ntpServerName, timeServerIP);
     
     // Send an NTP packet to a time server
     // Clean the buffer
-    memset(packetBuffer, 0, 48);
+    memset(packetBuffer, 0, NTP_PACKET_SIZE);
     
     packetBuffer[0] = 0b11100011;  // LI, Version, Mode
     packetBuffer[1] = 0;           // Stratum, or type of clock
     packetBuffer[2] = 6;           // Polling Interval
     packetBuffer[3] = 0xEC;        // Peer Clock Precision
     // 8 bytes of zero for Root Delay & Root Dispersion
-    packetBuffer[12]  = 49;
-    packetBuffer[13]  = 0x4E;
-    packetBuffer[14]  = 49;
-    packetBuffer[15]  = 52;
-    
+    packetBuffer[12] = 49;
+    packetBuffer[13] = 0x4E;
+    packetBuffer[14] = 49;
+    packetBuffer[15] = 52;
+
+    // Send the packet to port 123 of the NTP server
     udp.beginPacket(timeServerIP, 123);
-    udp.write(packetBuffer, 48);
+    udp.write(packetBuffer, NTP_PACKET_SIZE);
     udp.endPacket();
     
-    // Clean the buffer for the reply
-    memset(packetBuffer, 0, 48);
+    // Clear the buffer for the reply
+    memset(packetBuffer, 0, NTP_PACKET_SIZE);
     
-    uint8_t waitResponse = 10;
+    uint8_t waitResponse = MAX_TRIES_TIME_SYNC_RESPONSE;
     while(waitResponse--)
     {
       // No packet receieved yet, wait a second... and try again
       if(!udp.parsePacket())
       {
+        // Wait one second between next period
         delay(1000);
         continue;
       }
       
       // Read packet to buffer
-      udp.read(packetBuffer, 48);
+      udp.read(packetBuffer, NTP_PACKET_SIZE);
       
       // Only bytes 40 to 43 are important, trash the rest
       // Concatenate 4 bytes and remove 70 years since Unix time starts on Jan 1 1970 and we want 1900
       currentTime = ((packetBuffer[40] << 24) | (packetBuffer[41] << 16) | (packetBuffer[42] << 8) | packetBuffer[43]) - 2208988800UL;
       DEBUGV("Timestamp %d\n", currentTime);
+      
       // Break both loops
-      retries = 10;
+      retries = 0;
       break;
     }
     
@@ -468,6 +499,8 @@ time_t ICACHE_FLASH_ATTR syncTime()
   {
     // Time synchronisation was unsuccessful
     screenStatus("Time error");
+
+    // Wait one second to show the message on screen
     delay(1000);
   }
   
@@ -560,5 +593,30 @@ void ICACHE_FLASH_ATTR logData(time_t timestamp, uint16_t power)
   
   // This commits the data, otherwise nothing appears in the file
   dataFile.close();
+}
+
+void ICACHE_FLASH_ATTR logEvent(char * event)
+{
+  #ifdef ENABLE_EVENT_LOGGING
+  // Open the file for writing (appends data if the file already exists)
+  File logFile = SD.open("/log.txt", FILE_WRITE);
+  
+  // Write the event to the file in the format of YYYY-MM-DDTHH:MMZ - <event>
+  char buffer[64];
+  sprintf(
+    buffer,
+    "%04d-%02d-%02dT%02d:%02dZ - %s",
+    year(),
+    month(),
+    day(),
+    hour(),
+    minute(),
+    event
+  );
+  
+  logFile.println(buffer);
+  // This commits the log, otherwise nothing appears in the file
+  logFile.close();
+  #endif
 }
 

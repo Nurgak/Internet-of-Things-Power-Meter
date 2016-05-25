@@ -48,6 +48,7 @@ void blinkWatt();
 void buttonPress();
 void buttonPressLong();
 void logData(time_t, uint16_t);
+void logEvent(char *);
 void screenUpdate();
 uint16_t livePowerUsage();
 uint16_t todayPowerUsage();
