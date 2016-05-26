@@ -61,6 +61,7 @@ static const uint8_t wifi_subnet[] = {255, 255, 255, 0}; // You probably do not 
 
 #define PUSH_GOOGLE_SPREADSHEETS // Comment this line to disable logging to Google Spreadsheets
 static const char * googleSpreadSheetsScript = "/macros/s/SCRIPT_ID/exec";
+static const char * googleSpreadSheetsToken = "SECRET_TOKEN"; // Secret token so that nobody else could submit data to the Sheets above, even if the URL is disclosed
 
 // Name of the host, use to connect to device via "http://power.local" instead of using the IP address locally
 static const char* localHostName = "power";
@@ -79,6 +80,7 @@ static const char * http_password = "admin";
 #define MAX_TRIES_TIME_SYNC 5 // Maximum times the system will try to synchronise time with an NTP server
 #define MAX_TRIES_TIME_SYNC_RESPONSE 5 // Maximum times the system will wait for a response from the NTP server
 #define TIME_BUTTON_PRESS_LONG 2000 // Time in milliseconds for the long button press routine to execute
+#define SCREEN_TITLE_COLUMN 0 // Horizontal position from which the title should be displayed on screen
 #define SCREEN_START_COLUMN 6 // Horizontal position from which the data should be displayed on screen
 #define SCREEN_ROW_SSID  0
 #define SCREEN_ROW_STAT  1

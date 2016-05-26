@@ -46,7 +46,7 @@ class GoogleSpreadsheets : public Push
   WiFiClientSecure client;
   const char * script;
   // SHA1 fingerprint of Google Spreadsheets
-  const char * fingerprint = "81 50 50 6A 2B 1C 60 02 C2 96 51 57 AC 25 FA C9 51 FD F5 A4";
+  //const char * fingerprint = "81 50 50 6A 2B 1C 60 02 C2 96 51 57 AC 25 FA C9 51 FD F5 A4";
   
   public:
   GoogleSpreadsheets(const char * _script);

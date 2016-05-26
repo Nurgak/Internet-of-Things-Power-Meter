@@ -29,7 +29,7 @@
 #include <WiFiClientSecure.h>
 #include <TimeLib.h>
 
-//#include "config.h"
+#include "config.h"
 #include "push.h"
 
 GoogleSpreadsheets::GoogleSpreadsheets(const char * _script)
@@ -41,24 +41,27 @@ GoogleSpreadsheets::GoogleSpreadsheets(const char * _script)
 
 bool GoogleSpreadsheets::submit(time_t time, uint16_t power)
 {
-  //Serial.println("Submitting data to Google Spreadsheets");
+  DEBUGV("Submitting data to Google Spreadsheets\n");
   
   // Connect to Google Spreadsheets
   if (!client.connect(host, 443))
   {
-    //Serial.println("Connection failed");
+    DEBUGV("Connection failed\n");
     return false;
   }
 
-  // Check that the fingerprint matches
+  // This has been commented out as Google changes its SHA1 certificate depending on the server which is used
+  // No certificate veritication is done as the upload would fail from time to time
+  // Reference: http://www.esp8266.com/viewtopic.php?f=32&t=8981#p44253
+  /*// Check that the fingerprint matches
   if(!client.verify(fingerprint, host))
   {
-    //Serial.println("Certificate not valid");
+    DEBUGV("Certificate not valid\n");
     return false;
-  }
+  }*/
 
   // Construct the GET request
-  String url = String(script) + "?time=" + time + "&power=" + power;
+  String url = String(script) + "?time=" + time + "&power=" + power + "&token=" + googleSpreadSheetsToken;
 
   client.print(String("GET ") + url + " HTTP/1.1\r\nHost: " + host + "\r\nConnection: close\r\n\r\n");
   
@@ -67,10 +70,10 @@ bool GoogleSpreadsheets::submit(time_t time, uint16_t power)
   /*while(client.connected())
   {
     String line = client.readStringUntil('\n');
-    Serial.print(line);
+    DEBUGV(line);
   }*/
 
-  //Serial.println("Sumission succeeded");
+  DEBUGV("Sumission succeeded\n");
   return true;
 }
 
