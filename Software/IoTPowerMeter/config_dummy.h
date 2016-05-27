@@ -80,6 +80,7 @@ static const char * http_password = "admin";
 #define MAX_TRIES_TIME_SYNC 5 // Maximum times the system will try to synchronise time with an NTP server
 #define MAX_TRIES_TIME_SYNC_RESPONSE 5 // Maximum times the system will wait for a response from the NTP server
 #define TIME_BUTTON_PRESS_LONG 2000 // Time in milliseconds for the long button press routine to execute
+#define TIME_DEBOUNCE 200 // Time in milliseconds during which LED blinks are ignored when one was just detected
 #define SCREEN_TITLE_COLUMN 0 // Horizontal position from which the title should be displayed on screen
 #define SCREEN_START_COLUMN 6 // Horizontal position from which the data should be displayed on screen
 #define SCREEN_ROW_SSID  0

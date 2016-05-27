@@ -44,6 +44,10 @@
 IPAddress ip;
 ESP_SSD1306 display;
 
+#if defined(ENABLE_INTERNET) && defined(PUSH_GOOGLE_SPREADSHEETS)
+static GoogleSpreadsheets gs(googleSpreadSheetsScript);
+#endif
+
 // Global variables
 static volatile uint16_t powerCounter          = 0;  // Internal counter [Wh]
 static volatile uint16_t powerCounterNow       = 0;  // Instant power usage [Wh]
@@ -117,10 +121,6 @@ void loop(void)
   static uint16_t powerCounterTemp = 0; // Temporary variable for logging
   static bool uploadData = false; // Temporary variable indicating if data should be uploaded
   static char buffer[32]; // Buffer for log messages
-
-  #if defined(ENABLE_INTERNET) && defined(PUSH_GOOGLE_SPREADSHEETS)
-  static GoogleSpreadsheets gs(googleSpreadSheetsScript);
-  #endif
   
   // Handle client connecting to server
   #ifdef ENABLE_INTERNET
@@ -196,11 +196,11 @@ void loop(void)
         screenStatus("Uploading data");
         
         // Try a couple of times
-        uint8_t retries = 0;
+        uint8_t retries = MAX_TRIES_UPLOAD;
         boolean uploadComplete = false;
-        while(retries++ < MAX_TRIES_UPLOAD)
+        while(retries--)
         {
-          DEBUGV("Uploading data, try %d\n", retries);
+          DEBUGV("Uploading data, try %d\n", MAX_TRIES_UPLOAD - retries);
 
           // For hourly logs the minutes are not important, but to be sure we have the right hour (the last one) remove 30 minutes (minus the 1 from before too) from now
           // This is because the data uploaded is for the last hour, not the current hour, the server will only keep the hour of the day, the minutes are irrelevant
@@ -211,7 +211,7 @@ void loop(void)
             
             uploadComplete = true;
             
-            sprintf(buffer, "Data uploading tries: %d", retries);
+            sprintf(buffer, "Data uploading tries: %d", MAX_TRIES_UPLOAD - retries);
             logEvent(buffer);
             
             break;
@@ -266,6 +266,11 @@ void ICACHE_FLASH_ATTR buttonPress()
 void ICACHE_FLASH_ATTR buttonPressLong()
 {
   // TODO: set AP mode to configure Wi-Fi credentials
+
+  // Current function of the long press is to test the data uploading feature, by default it upload to 1970-01-01 at 00:00
+  screenStatus("Testing");
+  gs.submit(0, 1234);
+  screenStatus("OK");
 }
 
 // Show the current action in the STAT field on the screen
@@ -512,6 +517,16 @@ void ICACHE_FLASH_ATTR blinkWatt()
 {
   static uint32_t timeBlinkCurrent = 0;
   static uint32_t timeBlinkLast = 0;
+  static uint32_t timeDebounce = 0;
+
+  // Debounce routine, because sometimes one LED blink gets detected multiple times
+  // This is millis() rollover safe as (millis() - timeDebounce) is never negative
+  if((uint32_t)(millis() - timeDebounce) < TIME_DEBOUNCE)
+  {
+    return;
+  }
+  
+  timeDebounce = millis();
   
   // Update the power counters
   powerCounter++;

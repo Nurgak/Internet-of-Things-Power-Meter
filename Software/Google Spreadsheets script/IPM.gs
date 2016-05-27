@@ -21,7 +21,7 @@ function handleResponse(e)
   // Extract the GET paramaters
   var data = e.parameter;
   // Dummy data for testing
-  //var data = {"time": "1464077423", "power": "5555", "token": "SECRET_TOKEN"};
+  //var data = {"time": "1464339114", "power": "1234", "token": "SECRET_TOKEN"};
   
   // Make sure all data is passed
   if(!data.time || !data.power || !data.token)
@@ -93,14 +93,21 @@ function insertData(sheet, timeUnix, power)
   var columnNames = {"date": 1, "power": 2, "cost": 3, "data": 4};
   
   // Time is passed in UNIX timestamp format in seconds, JavaScript wants milliseconds
-  var time = new Date(timeUnix * 1000);
-  //var time = new Date((parseInt(timeUnix) + TIMEZONE * 3600) * 1000);
+  var date = new Date(timeUnix * 1000);
+  
+  // This allows to get the local time with timezone and DST
+  var dateFormatted = Utilities.formatDate(date, TIMEZONE, "yyyy-MM-dd");
+  // Make the hours an actual integer
+  var hourFormatted = parseInt(Utilities.formatDate(date, TIMEZONE, "H"));
   
   // Define an invalid row number
   var rowId = -1;
   
-  // Check if there is already a row with the given date
-  var days = sheet.getRange('A:A').getValues();
+  // Start from the row after the header (frozen rows)
+  var startRow = sheet.getFrozenRows() + 1;
+  
+  // Check if there is already a row with the given date, skip the top header rows
+  var days = sheet.getRange('A' + startRow +':A').getValues();
   
   for(var i in days)
   {
@@ -111,17 +118,15 @@ function insertData(sheet, timeUnix, power)
       break;
     }
     
-    // Parse the date in the row
-    var date = new Date(days[i]);
-    var year = date.getFullYear();
-    var month = date.getMonth();
-    var day = date.getDate();
-    
     // If the date matches then use that row
-    if(time.getFullYear() == year && time.getMonth() == month && time.getDate() == day)
+    // Use the "yyyy-MM-dd" format as parsing day month and year made it update the wrong day when the day changed for some reason
+    // The timezone variable does not matter for a date parsed from "yyyy-MM-dd" format
+    var dayFormatted = Utilities.formatDate(new Date(days[i]), 0, "yyyy-MM-dd");
+    
+    if(dateFormatted == dayFormatted)
     {
-      // Add 1 to skip the header row
-      rowId = parseInt(i) + 1;
+      // Skip the header row
+      rowId = parseInt(i) + startRow;
       break;
     }
   }
@@ -133,14 +138,13 @@ function insertData(sheet, timeUnix, power)
     rowId = sheet.getLastRow() + 1;
   
     // Update the date cell
-    var formattedDate = Utilities.formatDate(time, TIMEZONE, "yyyy-MM-dd");
-    sheet.getRange(rowId, columnNames.date).setValue(formattedDate);
+    sheet.getRange(rowId, columnNames.date).setValue(dateFormatted);
   
     // Update sum formula for the total day power usage
-    sheet.getRange(rowId, columnNames.power).setFormula("=SUM(D"+rowId+":"+rowId+")");
+    sheet.getRange(rowId, columnNames.power).setFormula("=SUM(D" + rowId + ":" + rowId + ")");
     
     // If there are at least 7 days of data (minus the header row) the settings of the cells one week ago will be copied over (cost formula and background color)
-    if(rowId - 7 > 1)
+    if(rowId - 7 > sheet.getFrozenRows())
     {
       // Update the cost formula using 7 rows before it (to get the same weekday) if it is a valid cell
       var cost = sheet.getRange(rowId - 7, columnNames.cost).getFormulaR1C1();
@@ -152,10 +156,8 @@ function insertData(sheet, timeUnix, power)
     }
   }
   
-  // Set the power for the hour, the formatDate() allows to get the local time with timezone and DST
-  var hour = parseInt(Utilities.formatDate(time, TIMEZONE, "H"));
   // Only fill the cell when there is nothing in it, otherwise it might overwrite important data
-  var cell = sheet.getRange(rowId, columnNames.data + hour);
+  var cell = sheet.getRange(rowId, columnNames.data + hourFormatted);
   if(cell.getValue() == "")
   {
     cell.setValue(power);
