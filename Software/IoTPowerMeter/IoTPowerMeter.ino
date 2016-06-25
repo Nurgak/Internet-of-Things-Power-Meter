@@ -268,9 +268,11 @@ void ICACHE_FLASH_ATTR buttonPressLong()
   // TODO: set AP mode to configure Wi-Fi credentials
 
   // Current function of the long press is to test the data uploading feature, by default it upload to 1970-01-01 at 00:00
+  #if defined(PUSH_GOOGLE_SPREADSHEETS)
   screenStatus("Testing");
   gs.submit(0, 1234);
   screenStatus("OK");
+  #endif
 }
 
 // Show the current action in the STAT field on the screen

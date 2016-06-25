@@ -59,7 +59,7 @@ static const uint8_t wifi_ip[] = {192, 168, 0, 123};     // The IP you want to g
 static const uint8_t wifi_gateway[] = {192, 168, 0, 1};  // Router IP
 static const uint8_t wifi_subnet[] = {255, 255, 255, 0}; // You probably do not need to change this one
 
-#define PUSH_GOOGLE_SPREADSHEETS // Comment this line to disable logging to Google Spreadsheets
+//#define PUSH_GOOGLE_SPREADSHEETS // Comment this line to disable logging to Google Spreadsheets
 static const char * googleSpreadSheetsScript = "/macros/s/SCRIPT_ID/exec";
 static const char * googleSpreadSheetsToken = "SECRET_TOKEN"; // Secret token so that nobody else could submit data to the Sheets above, even if the URL is disclosed
 
