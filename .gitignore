@@ -2,3 +2,4 @@
 *bak
 *.bck
 config.h
+.DS_*
